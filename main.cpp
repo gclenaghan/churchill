@@ -14,17 +14,6 @@ struct SearchContext
 	std::vector<Point> points;
 };
 
-class Cluster
-{
-	Cluster(std::vector<Point> p, Point c);
-	void set_rank();
-	void set_r2();
-	std::vector<Point> points;
-	int32_t rank;
-	Point center;
-	float r2;
-};
-
 inline bool is_inside(const Rect &rect, const Point &point)
 {
 	if( rect.lx <= point.x && rect.hx >= point.x &&
@@ -36,11 +25,6 @@ inline bool is_inside(const Rect &rect, const Point &point)
 inline bool sortpoint(const Point a, const Point b)
 {
 	return a.rank < b.rank;
-}
-
-inline float d2(const Point a, const Point b)
-{ //Square of distance between two points
-	return (a.x - b.x)*(a.x - b.x) + (a.y - b.y)*(a.y - b.y);
 }
 
 //SearchContext definitions-------------------------------------------------------------------------------------
@@ -61,39 +45,8 @@ int32_t SearchContext::search(const Rect rect, const int32_t count, Point* out_p
 			out_points++;
 		}
 	}
-	std::cout << "Max rank: " <<  (out_points-1)->rank << ".\n";
 	return result_count;
 }
-//cluster definitions-------------------------------------------------------------------------------------------
-Cluster::Cluster(std::vector<Point> p, Point c) : points(p) , rank(0) , r2(0)
-{
-	center = c;
-}
-
-void Cluster::set_rank()
-{
-	int32_t i = 0;
-	for(std::vector<Point>::iterator it = points.begin(); it != points.end(); ++it)
-	{
-		i += it->rank;
-	}
-
-	rank = i;
-}
-
-void Cluster::set_r2()
-{
-	float maxr2 = 0;
-	for(std::vector<Point>::iterator it = points.begin(); it != points.end(); ++it)
-	{
-		float testr2 = d2(center, *it);
-		if (testr2 > maxr2)
-		{
-			maxr2 = testr2;
-		}
-	}
-}
-
 
 extern "C" __declspec(dllexport) SearchContext* __stdcall create(const Point* points_begin, const Point* points_end)
 {
