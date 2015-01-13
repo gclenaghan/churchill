@@ -9,17 +9,17 @@
 class TreeNode
 {
 public:
-	TreeNode(Point* point);
+	TreeNode(Point point);
 	TreeNode();
 	~TreeNode();
-	Point* p;
+	Point p;
 	TreeNode *ne;
 	TreeNode *se;
 	TreeNode *sw;
 	TreeNode *nw;
 
 	std::vector<Point *> *search(const Rect rect, const int32_t count);
-	void insert(Point *point);
+	void insert(Point point);
 };
 
 struct SearchContext
@@ -52,8 +52,10 @@ SearchContext::SearchContext(const Point* points_begin, const Point* points_end)
 
 	for (auto it : *points)
 	{
-		quadtree.insert(&it);
+		quadtree.insert(it);
 	}
+
+	delete points;
 }
 
 int32_t SearchContext::search(const Rect rect, const int32_t count, Point* out_points)
@@ -74,8 +76,14 @@ int32_t SearchContext::search(const Rect rect, const int32_t count, Point* out_p
 }
 
 //TreeNode definitions-------------------------------------------------------------------------------------------
-TreeNode::TreeNode(Point* point) : p(point) , ne(NULL) , se(NULL) , sw(NULL) , nw(NULL) {}
-TreeNode::TreeNode() : p(NULL) , ne(NULL) , se(NULL) , sw(NULL) , nw(NULL) {}
+TreeNode::TreeNode(Point point) : ne(NULL) , se(NULL) , sw(NULL) , nw(NULL)
+{
+	p = point;
+}
+TreeNode::TreeNode() : ne(NULL) , se(NULL) , sw(NULL) , nw(NULL)
+{
+	p.rank = 0;
+}
 TreeNode::~TreeNode()
 {
 	delete ne;
@@ -84,38 +92,41 @@ TreeNode::~TreeNode()
 	delete nw;
 }
 
-void TreeNode::insert(Point* point)
+void TreeNode::insert(Point point)
 {
-	if (!p)
+	if (p.rank == 0)
 	{
 		p = point;
 		return;
-	} else if (point->x > p->x)
+	} else if (point.x > p.x)
 	{
-		if (point->y > p->y)
+		if (point.y > p.y)
 		{
 			if (ne)
 			{
 				ne->insert(point);
 			} else {
 				ne = new TreeNode(point);
+//				std::cout << "Inserted point of rank " << point.rank << " in ne.\n";
 			}
 		} else {
 			if (se)
 			{
 				se->insert(point);
 			} else {
-				ne = new TreeNode(point);
+				se = new TreeNode(point);
+//				std::cout << "Inserted point of rank " << point.rank << " in se.\n";
 			}
 		}
 	} else {
-		if (point->y > p->y)
+		if (point.y > p.y)
 		{
 			if (nw)
 			{
 				nw->insert(point);
 			} else {
 				nw = new TreeNode(point);
+//				std::cout << "Inserted point of rank " << point.rank << " in nw.\n";
 			}
 		} else {
 			if (sw)
@@ -123,6 +134,7 @@ void TreeNode::insert(Point* point)
 				sw->insert(point);
 			} else {
 				sw = new TreeNode(point);
+//				std::cout << "Inserted point of rank " << point.rank << " in sw.\n";
 			}
 		}
 	}
@@ -160,7 +172,7 @@ std::vector<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect
 						}
 						merged->push_back((*list2)[j]);
 						j++;
-					} else if ((*list2)[i] == *list2->end())
+					} else if ((*list2)[j] == *list2->end())
 					{
 						merged->push_back((*list1)[i]);
 						i++;
@@ -192,7 +204,12 @@ std::vector<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect
 
 std::vector<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 { //searches down the tree for points in given rectangle. Returns sorted list of points in rect, at least as much as count unless out of points
-	char bitmask = (((rect.lx <= p->x) ? 1 : 0) | ((rect.hx >= p->x) ? 2 : 0) | ((rect.ly <= p->y) ? 4 : 0) | ((rect.hy >= p->y) ? 8 : 0));
+	if (p.id == 0)
+	{
+		return NULL;
+	}
+//	std::cout << "Searching node of rank " << p.rank << ".\n";
+	char bitmask = (((rect.lx <= p.x) ? 1 : 0) | ((rect.hx >= p.x) ? 2 : 0) | ((rect.ly <= p.y) ? 4 : 0) | ((rect.hy >= p.y) ? 8 : 0));
 
 	switch (bitmask)
 	{
@@ -216,32 +233,49 @@ std::vector<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 	{
 		std::vector<Point *> *merged = new std::vector<Point *>, *list1 = twonodes(nw, ne, rect, count-1), *list2 = twonodes(sw, se, rect, count-1);
 		merged->reserve(count);
-		merged->push_back(p);
-		for (int c = 0, i = 0, j = 0; c < count; c++)
+		merged->push_back(&p);
+
+		if (list1)
 		{
-			if ((*list1)[i] == *list1->end())
-			{ //one of the lists is exhausted, copy the rest from the other
-				if ((*list2)[j] == *list2->end())
-				{
-					break;
-				}
-				merged->push_back((*list2)[j]);
-				j++;
-			} else if ((*list2)[i] == *list2->end())
+			if (list2)
 			{
-				merged->push_back((*list1)[i]);
-				i++;
-			} else { //both lists still have elements
-				if ((*list1)[i]->rank < (*list2)[j]->rank)
+				for (int c = 0, i = 0, j = 0; c < count; c++)
 				{
-					merged->push_back((*list1)[i]);
-					i++;
-				} else {
-					merged->push_back((*list2)[j]);
-					j++;
+					if ((*list1)[i] == *list1->end())
+					{ //one of the lists is exhausted, copy the rest from the other
+						if ((*list2)[j] == *list2->end())
+						{
+							break;
+						}
+						merged->push_back((*list2)[j]);
+						j++;
+					} else if ((*list2)[j] == *list2->end())
+					{
+						merged->push_back((*list1)[i]);
+						i++;
+					} else { //both lists still have elements
+						if ((*list1)[i]->rank < (*list2)[j]->rank)
+						{
+							merged->push_back((*list1)[i]);
+							i++;
+						} else {
+							merged->push_back((*list2)[j]);
+							j++;
+						}
+					}
 				}
+			} else {
+				merged->insert(merged->end(), list1->begin(), list1->end());
+			}
+		} else {
+			if (list2)
+			{
+				merged->insert(merged->end(), list2->begin(), list2->end());
+			} else {
+				return merged;
 			}
 		}
+
 		delete list1;
 		delete list2;
 		return merged;
