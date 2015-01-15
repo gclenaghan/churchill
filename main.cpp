@@ -107,7 +107,6 @@ void TreeNode::insert(Point point)
 				ne->insert(point);
 			} else {
 				ne = new TreeNode(point);
-//				std::cout << "Inserted point of rank " << point.rank << " in ne.\n";
 			}
 		} else {
 			if (se)
@@ -115,7 +114,6 @@ void TreeNode::insert(Point point)
 				se->insert(point);
 			} else {
 				se = new TreeNode(point);
-//				std::cout << "Inserted point of rank " << point.rank << " in se.\n";
 			}
 		}
 	} else {
@@ -126,7 +124,6 @@ void TreeNode::insert(Point point)
 				nw->insert(point);
 			} else {
 				nw = new TreeNode(point);
-//				std::cout << "Inserted point of rank " << point.rank << " in nw.\n";
 			}
 		} else {
 			if (sw)
@@ -134,7 +131,6 @@ void TreeNode::insert(Point point)
 				sw->insert(point);
 			} else {
 				sw = new TreeNode(point);
-//				std::cout << "Inserted point of rank " << point.rank << " in sw.\n";
 			}
 		}
 	}
@@ -204,11 +200,10 @@ std::vector<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect
 
 std::vector<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 { //searches down the tree for points in given rectangle. Returns sorted list of points in rect, at least as much as count unless out of points
-	if (p.id == 0)
+	if (p.rank == 0)
 	{
 		return NULL;
 	}
-//	std::cout << "Searching node of rank " << p.rank << ".\n";
 	char bitmask = (((rect.lx <= p.x) ? 1 : 0) | ((rect.hx >= p.x) ? 2 : 0) | ((rect.ly <= p.y) ? 4 : 0) | ((rect.hy >= p.y) ? 8 : 0));
 
 	switch (bitmask)
@@ -231,9 +226,17 @@ std::vector<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 		return twonodes(ne, se, rect, count);
 	case 15:
 	{
-		std::vector<Point *> *merged = new std::vector<Point *>, *list1 = twonodes(nw, ne, rect, count-1), *list2 = twonodes(sw, se, rect, count-1);
+		std::vector<Point *> *merged = new std::vector<Point *>, *list1, *list2;
 		merged->reserve(count);
 		merged->push_back(&p);
+
+		if (count < 2)
+		{
+			return merged;
+		}
+
+		list1 = twonodes(ne, nw, rect, count - 1);
+		list2 = twonodes(se, sw, rect, count - 1);
 
 		if (list1)
 		{
