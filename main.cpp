@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
+#include <deque>
 #include <algorithm>
 #include "point_search.h"
 
@@ -9,16 +10,15 @@
 class TreeNode
 {
 public:
-	TreeNode(Point point);
+	TreeNode(Point point, const bool sn);
 	TreeNode();
 	~TreeNode();
 	Point p;
 	TreeNode *ne;
-	TreeNode *se;
 	TreeNode *sw;
-	TreeNode *nw;
+	const bool ns;
 
-	std::vector<Point *> *search(const Rect rect, const int32_t count);
+	std::deque<Point *> *search(const Rect rect, const int32_t count);
 	void insert(Point point);
 };
 
@@ -26,9 +26,9 @@ struct SearchContext
 {
 	SearchContext(const Point* points_begin, const Point* points_end);
 	int32_t search(const Rect rect, const int32_t count, Point* out_points);
-	std::vector<Point> *points;
+	std::deque<Point> *points;
 
-	TreeNode quadtree;
+	TreeNode kdtree;
 };
 
 inline bool is_inside(const Rect &rect, const Point &point)
@@ -47,12 +47,19 @@ inline bool sortpoint(const Point a, const Point b)
 //SearchContext definitions-------------------------------------------------------------------------------------
 SearchContext::SearchContext(const Point* points_begin, const Point* points_end)
 {
-	points = new std::vector<Point>(points_begin, points_end);
+	points = new std::deque<Point>(points_begin, points_end);
+	for (auto it = points->begin(); it != points->end(); ++it)
+	{
+		if (it->x > 2000 || it->x < -2000 || it->y > 2000 || it->y < -2000)
+		{
+			points->erase(it);
+		}
+	}
 	std::sort(points->begin(), points->end(), sortpoint);
 
 	for (auto it : *points)
 	{
-		quadtree.insert(it);
+		kdtree.insert(it);
 	}
 
 	delete points;
@@ -60,83 +67,86 @@ SearchContext::SearchContext(const Point* points_begin, const Point* points_end)
 
 int32_t SearchContext::search(const Rect rect, const int32_t count, Point* out_points)
 {
-	std::vector<Point *> *result = quadtree.search(rect, count);
+	std::deque<Point *> *result = kdtree.search(rect, count);
+
 	if (result)
 	{
-		int32_t s = result->size();
-
 		for (auto it : *result)
 		{
+			if (!is_inside(rect, *it))
+			{
+				std::cout << "Wrong point";
+			}
 			*out_points = *it;
 			out_points++;
 		}
-		return s;
+		return result->size();
 	}
 	return 0;
 }
 
 //TreeNode definitions-------------------------------------------------------------------------------------------
-TreeNode::TreeNode(Point point) : ne(NULL) , se(NULL) , sw(NULL) , nw(NULL)
+TreeNode::TreeNode(Point point, const bool sn) : ne(NULL) , sw(NULL) , ns(sn)
 {
 	p = point;
 }
-TreeNode::TreeNode() : ne(NULL) , se(NULL) , sw(NULL) , nw(NULL)
+TreeNode::TreeNode() : ne(NULL) , sw(NULL) , ns(true)
 {
-	p.rank = 0;
+	p.rank = -1;
 }
 TreeNode::~TreeNode()
 {
 	delete ne;
-	delete se;
 	delete sw;
-	delete nw;
 }
 
 void TreeNode::insert(Point point)
 {
-	if (p.rank == 0)
+	if (p.rank == -1)
 	{
 		p = point;
 		return;
-	} else if (point.x > p.x)
+	}
+
+	if (ns)
 	{
-		if (point.y > p.y)
+		if (p.y > point.y)
 		{
-			if (ne)
-			{
-				ne->insert(point);
-			} else {
-				ne = new TreeNode(point);
-			}
-		} else {
-			if (se)
-			{
-				se->insert(point);
-			} else {
-				se = new TreeNode(point);
-			}
-		}
-	} else {
-		if (point.y > p.y)
-		{
-			if (nw)
-			{
-				nw->insert(point);
-			} else {
-				nw = new TreeNode(point);
-			}
-		} else {
 			if (sw)
 			{
 				sw->insert(point);
 			} else {
-				sw = new TreeNode(point);
+				sw = new TreeNode(point, false);
+			}
+		} else {
+			if (ne)
+			{
+				ne->insert(point);
+			} else {
+				ne = new TreeNode(point, false);
+			}
+		}
+	} else {
+		if (p.x > point.x)
+		{
+			if (sw)
+			{
+				sw->insert(point);
+			} else {
+				sw = new TreeNode(point, true);
+			}
+		} else {
+			if (ne)
+			{
+				ne->insert(point);
+			} else {
+				ne = new TreeNode(point, true);
 			}
 		}
 	}
 }
 
-std::vector<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect, const int32_t count)
+std::deque<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect, const int32_t count)
 { //Returns sorted list of at most count points within rect from the two nodes
 	char bitmask = ((node1 ? 1 : 0) | (node2 ? 2 : 0));
 
@@ -150,14 +160,13 @@ std::vector<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect
 		return node2->search(rect, count);
 	case 3:
 	{
-		std::vector<Point *> *list1 = node1->search(rect, count);
+		std::deque<Point *> *list1 = node1->search(rect, count);
 		if (list1)
 		{
-			std::vector<Point *> *list2 = node2->search(rect, count);
+			std::deque<Point *> *list2 = node2->search(rect, count);
 			if (list2)
 			{
-				std::vector<Point *> *merged = new std::vector<Point *>;
-				merged->reserve(count);
+				std::deque<Point *> *merged = new std::deque<Point *>;
 				for (int c = 0, i = 0, j = 0; c < count; c++)
 				{
 					if ((*list1)[i] == *list1->end())
@@ -198,90 +207,57 @@ std::vector<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect
 }
 
 
-std::vector<Point *> *TreeNode::search(const Rect rect, const int32_t count)
+std::deque<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 { //searches down the tree for points in given rectangle. Returns sorted list of points in rect, at least as much as count unless out of points
-	if (p.rank == 0)
+	if (p.rank == -1)
 	{
 		return NULL;
 	}
-	char bitmask = (((rect.lx <= p.x) ? 1 : 0) | ((rect.hx >= p.x) ? 2 : 0) | ((rect.ly <= p.y) ? 4 : 0) | ((rect.hy >= p.y) ? 8 : 0));
+	char bitmask = (((rect.lx <= p.x) ? 1 : 0) | ((rect.hx >= p.x) ? 2 : 0) | ((rect.ly <= p.y) ? 4 : 0) | ((rect.hy >= p.y) ? 8 : 0) | (ns ? 16 : 0));
 
 	switch (bitmask)
 	{
 	case 5:
+	case 9:
+	case 13:
+	case 21:
+	case 22:
+	case 23:
 		return (sw ? sw->search(rect, count) : NULL);
 	case 6:
-		return (se ? se->search(rect, count) : NULL);
-	case 7:
-		return twonodes(sw, se, rect, count);
-	case 9:
-		return (nw ? nw->search(rect, count) : NULL);
 	case 10:
-		return (ne ? ne->search(rect, count) : NULL);
-	case 11:
-		return twonodes(nw, ne, rect, count);
-	case 13:
-		return twonodes(nw, sw, rect, count);
 	case 14:
-		return twonodes(ne, se, rect, count);
+	case 25:
+	case 26:
+	case 27:
+		return (ne ? ne->search(rect, count) : NULL);
+	case 7:
+	case 11:
+	case 29:
+	case 30:
+		return twonodes(sw, ne, rect, count);
 	case 15:
+	case 31:
 	{
-		std::vector<Point *> *merged = new std::vector<Point *>, *list1, *list2;
-		merged->reserve(count);
-		merged->push_back(&p);
+		std::deque<Point *> *list;
 
 		if (count < 2)
 		{
-			return merged;
+			list = new std::deque<Point *>;
+			list->push_back(&p);
+			return  list;
 		}
 
-		list1 = twonodes(ne, nw, rect, count - 1);
-		list2 = twonodes(se, sw, rect, count - 1);
+		list = twonodes(ne, sw, rect, count - 1);
 
-		if (list1)
+		if (list)
 		{
-			if (list2)
-			{
-				for (int c = 0, i = 0, j = 0; c < count; c++)
-				{
-					if ((*list1)[i] == *list1->end())
-					{ //one of the lists is exhausted, copy the rest from the other
-						if ((*list2)[j] == *list2->end())
-						{
-							break;
-						}
-						merged->push_back((*list2)[j]);
-						j++;
-					} else if ((*list2)[j] == *list2->end())
-					{
-						merged->push_back((*list1)[i]);
-						i++;
-					} else { //both lists still have elements
-						if ((*list1)[i]->rank < (*list2)[j]->rank)
-						{
-							merged->push_back((*list1)[i]);
-							i++;
-						} else {
-							merged->push_back((*list2)[j]);
-							j++;
-						}
-					}
-				}
-			} else {
-				merged->insert(merged->end(), list1->begin(), list1->end());
-			}
+			list->insert(list->begin(), &p);
 		} else {
-			if (list2)
-			{
-				merged->insert(merged->end(), list2->begin(), list2->end());
-			} else {
-				return merged;
-			}
+			list = new std::deque<Point *>;
+			list->push_back(&p);
 		}
-
-		delete list1;
-		delete list2;
-		return merged;
+		return list;
 	}
 	}
 
