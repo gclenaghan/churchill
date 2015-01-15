@@ -30,6 +30,13 @@ inline bool sortpoint(const Point a, const Point b)
 //SearchContext definitions-------------------------------------------------------------------------------------
 SearchContext::SearchContext(const Point* points_begin, const Point* points_end) : points(points_begin, points_end)
 {
+	for (auto it = points.begin(); it != points.end(); ++it)
+	{
+		if (it->x > 2000 || it->x < -2000 || it->y > 2000 || it->y < -2000)
+		{
+			points.erase(it);
+		}
+	}
 	std::sort(points.begin(), points.end(), sortpoint);
 }
 
