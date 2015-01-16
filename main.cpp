@@ -151,20 +151,26 @@ std::deque<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect,
 			if (list2)
 			{
 				std::deque<Point *> *merged = new std::deque<Point *>;
-				for (int c = 0; c < count; c++)
+				for (int32_t c = 0; c < count; c++)
 				{
 					if (list1->empty())
 					{ //one of the lists is exhausted, copy the rest from the other
-						if (list2->empty())
+						while (c < count && !list2->empty())
 						{
-							break;
+							merged->push_back(list2->front());
+							list2->pop_front();
+							c++;
 						}
-						merged->push_back(list2->front());
-						list2->pop_front();
+						break;
 					} else if (list2->empty())
 					{
-						merged->push_back(list1->front());
-						list1->pop_front();
+						while (c < count && !list1->empty())
+						{
+							merged->push_back(list1->front());
+							list1->pop_front();
+							c++;
+						}
+						break;
 					} else { //both lists still have elements
 						if (list1->front()->rank < list2->front()->rank)
 						{
@@ -190,6 +196,69 @@ std::deque<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect,
 	return NULL; //never happens
 }
 
+void twonodes(TreeNode *node1, TreeNode *node2, const Rect rect, const int32_t count, std::deque<Point *> *merged)
+{ //Returns sorted list of at most count points within rect from the two nodes
+	char bitmask = ((node1 ? 1 : 0) | (node2 ? 2 : 0));
+	std::deque<Point *> *list = NULL;
+
+	switch (bitmask)
+	{
+	case 0:
+		return;
+	case 1:
+		list = node1->search(rect, count);
+		break;
+	case 2:
+		list = node2->search(rect, count);
+		break;
+	case 3:
+	{
+		std::deque<Point *> *list1 = node1->search(rect, count);
+		if (list1)
+		{
+			std::deque<Point *> *list2 = node2->search(rect, count);
+			if (list2)
+			{
+				for (int32_t c = 0; c < count; c++)
+				{
+					if (list1->empty())
+					{ //one of the lists is exhausted, copy the rest from the other
+						merged->insert(merged->end(), list2->begin(), list2->end());
+						break;
+					} else if (list2->empty())
+					{
+						merged->insert(merged->end(), list1->begin(), list1->end());
+						break;
+					} else { //both lists still have elements
+						if (list1->front()->rank < list2->front()->rank)
+						{
+							merged->push_back(list1->front());
+							list1->pop_front();
+						} else {
+							merged->push_back(list2->front());
+							list2->pop_front();
+						}
+					}
+				}
+				delete list1;
+				delete list2;
+				return;
+			} else {
+				list = list1;
+			}
+		} else {
+			list = node2->search(rect, count);
+		}
+	}
+	}
+	if (list)
+	{
+		merged->insert(merged->end(), list->begin(), list->end());
+		delete list;
+	}
+	return;
+}
+
 
 std::deque<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 { //searches down the tree for points in given rectangle. Returns sorted list of points in rect, at least as much as count unless out of points
@@ -197,7 +266,7 @@ std::deque<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 	{
 		return NULL;
 	}
-	char bitmask = (((rect.lx <= p.x) ? 1 : 0) | ((rect.hx >= p.x) ? 2 : 0) | ((rect.ly <= p.y) ? 4 : 0) | ((rect.hy >= p.y) ? 8 : 0) | (ns ? 16 : 0));
+	const char bitmask = (((rect.lx <= p.x) ? 1 : 0) | ((rect.hx >= p.x) ? 2 : 0) | ((rect.ly <= p.y) ? 4 : 0) | ((rect.hy >= p.y) ? 8 : 0) | (ns ? 16 : 0));
 
 	switch (bitmask)
 	{
@@ -223,23 +292,12 @@ std::deque<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 	case 15:
 	case 31:
 	{
-		std::deque<Point *> *list = NULL;
+		std::deque<Point *> *list = new std::deque<Point *>;
 
-		if (count < 2)
+		list->push_back(&p);
+		if (count > 1)
 		{
-			list = new std::deque<Point *>;
-			list->push_back(&p);
-			return  list;
-		}
-
-		list = twonodes(ne, sw, rect, count - 1);
-
-		if (list)
-		{
-			list->push_front(&p);
-		} else {
-			list = new std::deque<Point *>;
-			list->push_back(&p);
+			twonodes(ne, sw, rect, count - 1, list);
 		}
 		return list;
 	}
