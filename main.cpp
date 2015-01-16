@@ -26,18 +26,9 @@ struct SearchContext
 {
 	SearchContext(const Point* points_begin, const Point* points_end);
 	int32_t search(const Rect rect, const int32_t count, Point* out_points);
-	std::deque<Point> *points;
 
 	TreeNode kdtree;
 };
-
-inline bool is_inside(const Rect &rect, const Point &point)
-{
-	if( rect.lx <= point.x && rect.hx >= point.x &&
-		rect.ly <= point.y && rect.hy >= point.y )
-		return true;
-	return false;
-}
 
 inline bool sortpoint(const Point a, const Point b)
 {
@@ -47,36 +38,29 @@ inline bool sortpoint(const Point a, const Point b)
 //SearchContext definitions-------------------------------------------------------------------------------------
 SearchContext::SearchContext(const Point* points_begin, const Point* points_end)
 {
-	points = new std::deque<Point>(points_begin, points_end);
-	for (auto it = points->begin(); it != points->end(); ++it)
+	std::deque<Point> points(points_begin, points_end);
+	for (auto it = points.begin(); it != points.end(); ++it)
 	{
 		if (it->x > 2000 || it->x < -2000 || it->y > 2000 || it->y < -2000)
 		{
-			points->erase(it);
+			points.erase(it);
 		}
 	}
-	std::sort(points->begin(), points->end(), sortpoint);
+	std::sort(points.begin(), points.end(), sortpoint);
 
-	for (auto it : *points)
+	for (auto it : points)
 	{
 		kdtree.insert(it);
 	}
-
-	delete points;
 }
 
 int32_t SearchContext::search(const Rect rect, const int32_t count, Point* out_points)
 {
 	std::deque<Point *> *result = kdtree.search(rect, count);
-
 	if (result)
 	{
 		for (auto it : *result)
 		{
-			if (!is_inside(rect, *it))
-			{
-				std::cout << "Wrong point";
-			}
 			*out_points = *it;
 			out_points++;
 		}
@@ -167,28 +151,28 @@ std::deque<Point *> *twonodes(TreeNode *node1, TreeNode *node2, const Rect rect,
 			if (list2)
 			{
 				std::deque<Point *> *merged = new std::deque<Point *>;
-				for (int c = 0, i = 0, j = 0; c < count; c++)
+				for (int c = 0; c < count; c++)
 				{
-					if ((*list1)[i] == *list1->end())
+					if (list1->empty())
 					{ //one of the lists is exhausted, copy the rest from the other
-						if ((*list2)[j] == *list2->end())
+						if (list2->empty())
 						{
 							break;
 						}
-						merged->push_back((*list2)[j]);
-						j++;
-					} else if ((*list2)[j] == *list2->end())
+						merged->push_back(list2->front());
+						list2->pop_front();
+					} else if (list2->empty())
 					{
-						merged->push_back((*list1)[i]);
-						i++;
+						merged->push_back(list1->front());
+						list1->pop_front();
 					} else { //both lists still have elements
-						if ((*list1)[i]->rank < (*list2)[j]->rank)
+						if (list1->front()->rank < list2->front()->rank)
 						{
-							merged->push_back((*list1)[i]);
-							i++;
+							merged->push_back(list1->front());
+							list1->pop_front();
 						} else {
-							merged->push_back((*list2)[j]);
-							j++;
+							merged->push_back(list2->front());
+							list2->pop_front();
 						}
 					}
 				}
@@ -239,7 +223,7 @@ std::deque<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 	case 15:
 	case 31:
 	{
-		std::deque<Point *> *list;
+		std::deque<Point *> *list = NULL;
 
 		if (count < 2)
 		{
@@ -252,7 +236,7 @@ std::deque<Point *> *TreeNode::search(const Rect rect, const int32_t count)
 
 		if (list)
 		{
-			list->insert(list->begin(), &p);
+			list->push_front(&p);
 		} else {
 			list = new std::deque<Point *>;
 			list->push_back(&p);
