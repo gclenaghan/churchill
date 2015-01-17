@@ -59,67 +59,6 @@ SearchContext::SearchContext(const Point* points_begin, const Point* points_end)
 	}
 }
 
-//TreeNode definitions-------------------------------------------------------------------------------------------
-TreeNode::TreeNode(Point point, const bool sn) : ne(nullptr) , sw(nullptr) , ns(sn)
-{
-	p = point;
-}
-TreeNode::TreeNode() : ne(nullptr) , sw(nullptr) , ns(true)
-{
-	p.rank = -1;
-}
-TreeNode::~TreeNode()
-{
-	delete ne;
-	delete sw;
-}
-
-void TreeNode::insert(Point point)
-{
-	if (p.rank == -1)
-	{
-		p = point;
-		return;
-	}
-
-	if (ns)
-	{
-		if (p.y > point.y)
-		{
-			if (sw)
-			{
-				sw->insert(point);
-			} else {
-				sw = new TreeNode(point, false);
-			}
-		} else {
-			if (ne)
-			{
-				ne->insert(point);
-			} else {
-				ne = new TreeNode(point, false);
-			}
-		}
-	} else {
-		if (p.x > point.x)
-		{
-			if (sw)
-			{
-				sw->insert(point);
-			} else {
-				sw = new TreeNode(point, true);
-			}
-		} else {
-			if (ne)
-			{
-				ne->insert(point);
-			} else {
-				ne = new TreeNode(point, true);
-			}
-		}
-	}
-}
-
 int32_t SearchContext::search(const Rect rect, const int32_t count, Point *out_points)
 {
 	std::priority_queue<TreeNode *, std::vector<TreeNode *>, sortnode> nodes; //list of nodes currently being searched
@@ -192,6 +131,69 @@ int32_t SearchContext::search(const Rect rect, const int32_t count, Point *out_p
 	
 	return c;
 }
+
+//TreeNode definitions-------------------------------------------------------------------------------------------
+TreeNode::TreeNode(Point point, const bool sn) : ne(nullptr) , sw(nullptr) , ns(sn)
+{
+	p = point;
+}
+TreeNode::TreeNode() : ne(nullptr) , sw(nullptr) , ns(true)
+{
+	p.rank = -1;
+}
+TreeNode::~TreeNode()
+{
+	delete ne;
+	delete sw;
+}
+
+void TreeNode::insert(Point point)
+{
+	if (p.rank == -1)
+	{
+		p = point;
+		return;
+	}
+
+	if (ns)
+	{
+		if (p.y > point.y)
+		{
+			if (sw)
+			{
+				sw->insert(point);
+			} else {
+				sw = new TreeNode(point, false);
+			}
+		} else {
+			if (ne)
+			{
+				ne->insert(point);
+			} else {
+				ne = new TreeNode(point, false);
+			}
+		}
+	} else {
+		if (p.x > point.x)
+		{
+			if (sw)
+			{
+				sw->insert(point);
+			} else {
+				sw = new TreeNode(point, true);
+			}
+		} else {
+			if (ne)
+			{
+				ne->insert(point);
+			} else {
+				ne = new TreeNode(point, true);
+			}
+		}
+	}
+}
+
+
 
 //External calls--------------------------------------------------------------------------------------------------
 extern "C" __declspec(dllexport) SearchContext* __stdcall create(const Point* points_begin, const Point* points_end)
