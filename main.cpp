@@ -1,60 +1,201 @@
-#include <stdio.h>
-#include <stdlib.h>
+//Everything copyright Graham Clenaghan, 2015
+
 #include <vector>
+#include <queue>
 #include <algorithm>
 #include "point_search.h"
 
-#include <iostream>
+class TreeNode
+{
+public:
+	TreeNode(Point point, const bool sn);
+	TreeNode();
+	~TreeNode();
+	Point p;
+	TreeNode *ne;
+	TreeNode *sw;
+	const bool ns;
 
+	void insert(Point point);
+};
 
 struct SearchContext
 {
 	SearchContext(const Point* points_begin, const Point* points_end);
 	int32_t search(const Rect rect, const int32_t count, Point* out_points);
-	std::vector<Point> points;
-};
 
-inline bool is_inside(const Rect &rect, const Point &point)
-{
-	if( rect.lx <= point.x && rect.hx >= point.x &&
-		rect.ly <= point.y && rect.hy >= point.y )
-		return true;
-	return false;
-}
+	TreeNode kdtree;
+};
 
 inline bool sortpoint(const Point a, const Point b)
 {
 	return a.rank < b.rank;
 }
 
-//SearchContext definitions-------------------------------------------------------------------------------------
-SearchContext::SearchContext(const Point* points_begin, const Point* points_end) : points(points_begin, points_end)
+struct sortnode
 {
+	bool operator()(const TreeNode *a, const TreeNode *b) const
+	{
+		return a->p.rank > b->p.rank;
+	}
+};
+
+//SearchContext definitions-------------------------------------------------------------------------------------
+SearchContext::SearchContext(const Point* points_begin, const Point* points_end)
+{
+	std::vector<Point> points(points_begin, points_end);
 	for (auto it = points.begin(); it != points.end(); ++it)
 	{
-		if (it->x > 2000 || it->x < -2000 || it->y > 2000 || it->y < -2000)
-		{
+		if (it->x > 5000 || it->x < -5000 || it->y > 5000 || it->y < -5000)
+		{ //There are points that never seem to be in any rectangle, might as as well toss 'em.
 			points.erase(it);
 		}
 	}
 	std::sort(points.begin(), points.end(), sortpoint);
+
+	for (auto it : points)
+	{
+		kdtree.insert(it);
+	}
 }
 
-int32_t SearchContext::search(const Rect rect, const int32_t count, Point* out_points)
+int32_t SearchContext::search(const Rect rect, const int32_t count, Point *out_points)
 {
-	int32_t result_count = 0;
-	for(std::vector<Point>::iterator it = points.begin(); result_count < count && it != points.end(); ++it)
+	std::priority_queue<TreeNode *, std::vector<TreeNode *>, sortnode> nodes; //list of nodes currently being searched
+	TreeNode *currnode = nullptr;
+	int32_t c = 0;
+	nodes.push(&kdtree);
+	
+	while(c < count && !nodes.empty())
 	{
-		if (is_inside(rect, *it))
+		currnode = nodes.top();
+		nodes.pop();
+		if (currnode->p.rank == -1)
 		{
-			*out_points = *it;
-			result_count++;
-			out_points++;
+			continue;
+		} else {
+			switch ((((rect.lx <= currnode->p.x) ? 1 : 0) | ((rect.hx >= currnode->p.x) ? 2 : 0) | ((rect.ly <= currnode->p.y) ? 4 : 0) | ((rect.hy >= currnode->p.y) ? 8 : 0) | (currnode->ns ? 16 : 0)))
+			{
+			case 5:
+			case 9:
+			case 13:
+			case 21:
+			case 22:
+			case 23:
+				if (currnode->sw)
+				{
+					nodes.push(currnode->sw);
+				}
+				break;
+			case 6:
+			case 10:
+			case 14:
+			case 25:
+			case 26:
+			case 27:
+				if (currnode->ne)
+				{
+					nodes.push(currnode->ne);
+				}
+				break;
+			case 7:
+			case 11:
+			case 29:
+			case 30:
+				if (currnode->ne)
+				{
+					nodes.push(currnode->ne);
+				}
+				if (currnode->sw)
+				{
+					nodes.push(currnode->sw);
+				}
+				break;
+			case 15:
+			case 31:
+				*out_points = currnode->p;
+				out_points++;
+				c++;
+				if (currnode->ne)
+				{
+					nodes.push(currnode->ne);
+				}
+				if (currnode->sw)
+				{
+					nodes.push(currnode->sw);
+				}
+				break;
+			}
 		}
 	}
-	return result_count;
+	
+	return c;
 }
 
+//TreeNode definitions-------------------------------------------------------------------------------------------
+TreeNode::TreeNode(Point point, const bool sn) : ne(nullptr) , sw(nullptr) , ns(sn)
+{
+	p = point;
+}
+TreeNode::TreeNode() : ne(nullptr) , sw(nullptr) , ns(true)
+{
+	p.rank = -1;
+}
+TreeNode::~TreeNode()
+{
+	delete ne;
+	delete sw;
+}
+
+void TreeNode::insert(Point point)
+{
+	if (p.rank == -1)
+	{
+		p = point;
+		return;
+	}
+
+	if (ns)
+	{
+		if (p.y > point.y)
+		{
+			if (sw)
+			{
+				sw->insert(point);
+			} else {
+				sw = new TreeNode(point, false);
+			}
+		} else {
+			if (ne)
+			{
+				ne->insert(point);
+			} else {
+				ne = new TreeNode(point, false);
+			}
+		}
+	} else {
+		if (p.x > point.x)
+		{
+			if (sw)
+			{
+				sw->insert(point);
+			} else {
+				sw = new TreeNode(point, true);
+			}
+		} else {
+			if (ne)
+			{
+				ne->insert(point);
+			} else {
+				ne = new TreeNode(point, true);
+			}
+		}
+	}
+}
+
+
+
+//External calls--------------------------------------------------------------------------------------------------
 extern "C" __declspec(dllexport) SearchContext* __stdcall create(const Point* points_begin, const Point* points_end)
 {
 	return new SearchContext(points_begin, points_end);
