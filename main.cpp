@@ -6,7 +6,7 @@
 #include "point_search.h"
 
 class TreeNode
-{
+{ //2-dimensional kd-tree
 public:
 	TreeNode(Point point, const bool sn);
 	TreeNode();
@@ -14,7 +14,7 @@ public:
 	Point p;
 	TreeNode *ne;
 	TreeNode *sw;
-	const bool ns;
+	const bool ns; //determines whether the space is divided north-south or east-west
 
 	void insert(Point point);
 };
@@ -61,21 +61,21 @@ SearchContext::SearchContext(const Point* points_begin, const Point* points_end)
 
 int32_t SearchContext::search(const Rect rect, const int32_t count, Point *out_points)
 {
-	std::priority_queue<TreeNode *, std::vector<TreeNode *>, sortnode> nodes; //list of nodes currently being searched
+	std::priority_queue<TreeNode *, std::vector<TreeNode *>, sortnode> nodes; //list of nodes currently being searched, as a priority queue it'll always check the highest rank points
 	TreeNode *currnode = nullptr;
 	int32_t c = 0;
-	nodes.push(&kdtree);
+	nodes.push(&kdtree); //add root
 	
 	while(c < count && !nodes.empty())
-	{
+	{ //this performs a breadth-first search down the tree, checking highest ranking nodes first.
 		currnode = nodes.top();
 		nodes.pop();
-		if (currnode->p.rank == -1)
+		if (currnode->p.rank == -1) //Node hasn't had a point inserted yet.
 		{
 			continue;
 		} else {
 			switch ((((rect.lx <= currnode->p.x) ? 1 : 0) | ((rect.hx >= currnode->p.x) ? 2 : 0) | ((rect.ly <= currnode->p.y) ? 4 : 0) | ((rect.hy >= currnode->p.y) ? 8 : 0) | (currnode->ns ? 16 : 0)))
-			{
+			{ //this is a pretty obnoxious switch, but an if-else tree would be just as unreadable imo
 			case 5:
 			case 9:
 			case 13:
@@ -112,7 +112,7 @@ int32_t SearchContext::search(const Rect rect, const int32_t count, Point *out_p
 				}
 				break;
 			case 15:
-			case 31:
+			case 31: //point is in the rectangle, add it to the list!
 				*out_points = currnode->p;
 				out_points++;
 				c++;
@@ -139,7 +139,7 @@ TreeNode::TreeNode(Point point, const bool sn) : ne(nullptr) , sw(nullptr) , ns(
 }
 TreeNode::TreeNode() : ne(nullptr) , sw(nullptr) , ns(true)
 {
-	p.rank = -1;
+	p.rank = -1; //need to tell if node's point hasn't been initiated.
 }
 TreeNode::~TreeNode()
 {
@@ -151,7 +151,7 @@ void TreeNode::insert(Point point)
 {
 	if (p.rank == -1)
 	{
-		p = point;
+		p = point; //overwrite unititialized point
 		return;
 	}
 
